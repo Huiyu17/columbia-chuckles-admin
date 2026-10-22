@@ -11,7 +11,12 @@ export default function LoginButton() {
     try {
       const { error } = await createClient().auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: new URL("/auth/callback", window.location.origin).toString() },
+        options: {
+          redirectTo: new URL("/auth/callback", window.location.origin).toString(),
+          // Always show Google's account chooser, so an admin can switch accounts
+          // after signing out instead of being silently re-signed in.
+          queryParams: { prompt: "select_account" },
+        },
       });
       if (error) throw error;
     } catch {
