@@ -33,3 +33,33 @@ everything.
   shared legend and reading tip.
 - **Mobile.** Takeaway cards become a horizontally swipeable row, and the section nav
   shows short labels only.
+
+## Feedback 2: recover deleted captions
+
+> Add a recover feature: users and admins should be able to restore captions a
+> user deleted, with a Trash section in My humor and a restore action in the
+> admin panel's Withdrawn tab.
+
+- **Withdrawn tab:** each card has **↺ Restore** next to View/Delete. The help
+  text explains the difference: Restore brings the caption back, Delete removes
+  it for good.
+- **Caption detail:** an "In the author's Trash" panel with a Restore button.
+  The status badge now reads "In author's Trash".
+- After a restore, a one-time confirmation is shown. The caption returns to
+  Explore with its original votes, and to the author's My captions.
+- The main site has the matching **My humor → Trash** view. Its database side is
+  `supabase/010_trash_and_restore.sql`, tested by `scripts/trash-db-test.sql`
+  (28 checks).
+
+### Follow-up: reversible admin deletes (migration 011)
+
+- Live captions now have **Remove** instead of Delete. Remove hides the caption
+  from everyone and keeps its votes.
+- A new **Removed** tab lists admin-removed captions with **↺ Restore** and
+  **Delete** (permanent). The author-deleted tab is renamed **Author's Trash**.
+- Permanent deletion is only possible once a caption is hidden, which makes it a
+  deliberate second step.
+- Authors see admin removals in their Trash as "Removed by a moderator" and
+  cannot restore them. The database enforces this.
+- `supabase/011_admin_soft_remove.sql` is tested by `scripts/removal-db-test.sql`
+  (42 checks). The Trash (28) and admin (41) suites still pass with 011 applied.

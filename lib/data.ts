@@ -50,10 +50,12 @@ export async function loadUsers(supabase: Supabase): Promise<AdminUser[]> {
 export type WithdrawnCaption = {
   id: string; content: string; created_at: string; deleted_at: string;
   image_id: string; generation_id: string | null;
+  /** Who hid it (migration 011): the author (Trash) or an admin (Removed). */
+  deleted_by: "author" | "admin" | null;
 };
 
 export async function loadWithdrawn(supabase: Supabase): Promise<WithdrawnCaption[]> {
   const { data, error } = await supabase.rpc("admin_list_withdrawn_captions");
-  if (error) throw new Error(`Could not read withdrawn captions (${error.code ?? "unknown"}).`);
+  if (error) throw new Error(`Could not read hidden captions (${error.code ?? "unknown"}).`);
   return (data ?? []) as WithdrawnCaption[];
 }

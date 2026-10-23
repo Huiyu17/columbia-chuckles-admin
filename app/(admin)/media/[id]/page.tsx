@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import DeleteCaptionButton from "@/components/DeleteCaptionButton";
 import EditCaptionForm from "@/components/EditCaptionForm";
 import FlashNotice from "@/components/FlashNotice";
+import RemoveCaptionButton from "@/components/RemoveCaptionButton";
+import RestoreCaptionButton from "@/components/RestoreCaptionButton";
 import Thumb from "@/components/Thumb";
 import { SplitBars } from "@/components/charts";
 import { requireAdmin, uuidPattern } from "@/lib/auth";
@@ -23,13 +25,15 @@ export default async function MediaDetailPage({ params, searchParams }: {
 
   const { data: liveRow } = await supabase.from("captions").select(captionColumns).eq("id", id).maybeSingle();
   const live = liveRow as CaptionRow | null;
-  let caption: (CaptionRow & { deleted_at?: string }) | null = live;
+  let caption: (CaptionRow & { deleted_at?: string; deleted_by?: "author" | "admin" | null }) | null = live;
   if (!caption) {
     const w = (await loadWithdrawn(supabase)).find((x) => x.id === id);
     caption = w ? { ...w, admin_edited_at: null } : null;
   }
   if (!caption) notFound();
   const isLive = Boolean(live);
+  // Hidden captions are either removed by an admin, or in the author's Trash.
+  const hiddenTab = caption.deleted_by === "admin" ? "removed" : "withdrawn";
 
   const [{ data: image }, { data: generationRow }, { data: voteRows }, images] = await Promise.all([
     supabase.from("images").select("id, url, alt_text, user_id").eq("id", caption.image_id).maybeSingle(),
@@ -55,8 +59,10 @@ export default async function MediaDetailPage({ params, searchParams }: {
 
   return (
     <div className="stack-lg">
-      <Link href={isLive ? "/media" : "/media?tab=withdrawn"} className="back-link">← AI media</Link>
+      <Link href={isLive ? "/media" : `/media?tab=${hiddenTab}`} className="back-link">← AI media</Link>
       {param(sp.created) && <FlashNotice param="created" message="Published! It’s live in Explore now." />}
+      {param(sp.restored) && <FlashNotice param="restored" message="Restored! It’s live in Explore again, with its votes." />}
+      {param(sp.removed) && <FlashNotice param="removed" message="Removed from Explore. Its votes are hidden too; restore it below to bring both back." />}
 
       <div className="detail-grid">
         <section className="panel stack-md">
@@ -67,7 +73,9 @@ export default async function MediaDetailPage({ params, searchParams }: {
             {image && <> · <Link className="link-strong" href={`/media?image=${image.id}`}>other captions on this photo</Link></>}
           </p>
           <div className="row">
-            {isLive ? <span className="badge badge-live">Live in Explore</span> : <span className="badge badge-warn">Withdrawn by author</span>}
+            {isLive ? <span className="badge badge-live">Live in Explore</span>
+              : hiddenTab === "removed" ? <span className="badge badge-removed">Removed by admin</span>
+              : <span className="badge badge-warn">In author&apos;s Trash</span>}
             {caption.admin_edited_at && <span className="badge badge-edit">Admin-edited {fmtDateTime(caption.admin_edited_at)}</span>}
           </div>
         </section>
@@ -79,12 +87,24 @@ export default async function MediaDetailPage({ params, searchParams }: {
               <EditCaptionForm id={caption.id} content={caption.content} imageId={caption.image_id} images={images} />
             </section>
           )}
+          {!isLive && (
+            <section className="panel restore-panel">
+              <h2>{hiddenTab === "removed" ? "Removed by an admin" : "In the author's Trash"}</h2>
+              <p className="muted small">
+                {hiddenTab === "removed"
+                  ? "An admin removed this caption, so it is hidden from everyone and the author can’t restore it. "
+                  : "The author deleted this caption from My humor, so it is hidden from everyone. "}
+                Restoring it puts it back in Explore and in the author&apos;s My captions, with its original votes and likes.
+              </p>
+              <RestoreCaptionButton id={caption.id} from="detail" />
+            </section>
+          )}
           <section className="panel">
             <h2>Provenance</h2>
             <dl className="facts facts-wide">
               <div><dt>Author</dt><dd>{generation ? <Link className="link-strong" href={`/users/${generation.user_id}`}>{author}</Link> : author}</dd></div>
               <div><dt>Published</dt><dd>{fmtDateTime(caption.created_at)}</dd></div>
-              {caption.deleted_at && <div><dt>Withdrawn</dt><dd>{fmtDateTime(caption.deleted_at)}</dd></div>}
+              {caption.deleted_at && <div><dt>{hiddenTab === "removed" ? "Removed" : "Moved to Trash"}</dt><dd>{fmtDateTime(caption.deleted_at)}</dd></div>}
               <div><dt>Model</dt><dd>{generation?.model ?? "—"}</dd></div>
               <div><dt>Style</dt><dd>{generation ? styleOf(generation) : "—"}</dd></div>
               <div><dt>Scene input</dt><dd>{generation?.user_input ?? "—"}</dd></div>
@@ -103,7 +123,7 @@ export default async function MediaDetailPage({ params, searchParams }: {
 
           <section className="panel">
             <h2>Votes</h2>
-            {!isLive ? <p className="muted">Votes on withdrawn captions are hidden by RLS.</p> : (
+            {!isLive ? <p className="muted">Votes on hidden captions are kept, but hidden from everyone until it is restored.</p> : (
               <>
                 <SplitBars rows={[{ label: "All voters", sub: `Wilson score ${wilson(tally).toFixed(2)}`, tally }]} />
                 {total(tally) > 0 && (
@@ -121,11 +141,22 @@ export default async function MediaDetailPage({ params, searchParams }: {
             )}
           </section>
 
-          <section className="panel danger-zone">
-            <h2>Danger zone</h2>
-            <p className="muted small">Permanently delete this caption and its votes.</p>
-            <DeleteCaptionButton id={caption.id} preview={caption.content} votes={total(tally)} />
-          </section>
+          {isLive ? (
+            <section className="panel warn-zone">
+              <h2>Remove</h2>
+              <p className="muted small">
+                Hide this caption and its votes from Explore and every collection. It&apos;s reversible: restoring it
+                from the Removed tab brings back the caption and its votes. Permanent deletion becomes available after removing.
+              </p>
+              <RemoveCaptionButton id={caption.id} preview={caption.content} from="detail" />
+            </section>
+          ) : (
+            <section className="panel danger-zone">
+              <h2>Danger zone</h2>
+              <p className="muted small">Erase this caption and all of its votes. Nobody can restore it afterwards.</p>
+              <DeleteCaptionButton id={caption.id} preview={caption.content} back={hiddenTab} />
+            </section>
+          )}
         </div>
       </div>
     </div>

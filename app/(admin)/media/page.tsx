@@ -1,6 +1,8 @@
 import Link from "next/link";
 import DeleteCaptionButton from "@/components/DeleteCaptionButton";
 import FlashNotice from "@/components/FlashNotice";
+import RemoveCaptionButton from "@/components/RemoveCaptionButton";
+import RestoreCaptionButton from "@/components/RestoreCaptionButton";
 import Pager from "@/components/Pager";
 import Thumb from "@/components/Thumb";
 import { TallyPill } from "@/components/charts";
@@ -16,19 +18,22 @@ type SP = Promise<{ [key: string]: string | string[] | undefined }>;
 export default async function MediaPage({ searchParams }: { searchParams: SP }) {
   const { supabase } = await requireAdmin();
   const sp = await searchParams;
-  const tab = param(sp.tab) === "withdrawn" ? "withdrawn" : "live";
+  // live = in Explore · removed = hidden by an admin · withdrawn = in the author's Trash
+  const tab = param(sp.tab) === "withdrawn" ? "withdrawn" : param(sp.tab) === "removed" ? "removed" : "live";
   const q = param(sp.q).trim();
   const source = ["sample", "uploaded"].includes(param(sp.source)) ? param(sp.source) : "";
   const sort = ["top", "votes", "oldest"].includes(param(sp.sort)) ? param(sp.sort) : "newest";
   const imageFilter = uuidPattern.test(param(sp.image)) ? param(sp.image) : "";
 
-  const [ds, withdrawn] = await Promise.all([loadDataset(supabase), loadWithdrawn(supabase)]);
+  const [ds, hidden] = await Promise.all([loadDataset(supabase), loadWithdrawn(supabase)]);
+  const removed = hidden.filter((h) => h.deleted_by === "admin");
+  const withdrawn = hidden.filter((h) => h.deleted_by !== "admin");
   const ix = buildIndex(ds);
   const base = { tab: tab === "live" ? undefined : tab, q: q || undefined, source: source || undefined,
     sort: sort === "newest" ? undefined : sort, image: imageFilter || undefined };
 
   const list: (CaptionRow & { deleted_at?: string | null })[] = tab === "live"
-    ? ds.captions : withdrawn.map((w) => ({ ...w, admin_edited_at: null }));
+    ? ds.captions : (tab === "removed" ? removed : withdrawn).map((w) => ({ ...w, admin_edited_at: null }));
   let rows = list.map((c) => {
     const authorId = c.generation_id ? ix.generations.get(c.generation_id)?.user_id : undefined;
     return {
@@ -64,24 +69,31 @@ export default async function MediaPage({ searchParams }: { searchParams: SP }) 
         <div>
           <span className="eyebrow">AI media · create · read · update · delete</span>
           <h1>AI-generated captions</h1>
-          <p className="muted">{fmtNum(ds.captions.length)} live · {fmtNum(withdrawn.length)} withdrawn by their authors</p>
+          <p className="muted">
+            {fmtNum(ds.captions.length)} live · {fmtNum(removed.length)} removed by admins · {fmtNum(withdrawn.length)} in authors&apos; Trash
+          </p>
         </div>
         <Link href="/media/new" className="button button-primary">+ Create AI caption</Link>
       </header>
 
-      {param(sp.deleted) && <FlashNotice param="deleted" message="Caption deleted permanently. It is gone from Explore and every user’s collections." />}
+      {param(sp.removed) && <FlashNotice param="removed" message="Removed from Explore. Its votes are hidden too. Restore it or delete it permanently from the Removed tab." />}
+      {param(sp.deleted) && <FlashNotice param="deleted" message="Caption deleted permanently. It can no longer be restored." />}
+      {param(sp.restored) && <FlashNotice param="restored" message="Caption restored. It’s back in Explore with its votes, and back in the author’s My captions." />}
 
       <nav className="tabs" aria-label="Caption status">
         <Link href={hrefWith("/media", { ...base, tab: undefined, page: 1 })} className={tab === "live" ? "tab active" : "tab"}>
           Live <span className="count">{ds.captions.length}</span>
         </Link>
+        <Link href={hrefWith("/media", { ...base, tab: "removed", page: 1 })} className={tab === "removed" ? "tab active" : "tab"}>
+          Removed <span className="count">{removed.length}</span>
+        </Link>
         <Link href={hrefWith("/media", { ...base, tab: "withdrawn", page: 1 })} className={tab === "withdrawn" ? "tab active" : "tab"}>
-          Withdrawn <span className="count">{withdrawn.length}</span>
+          Author&apos;s Trash <span className="count">{withdrawn.length}</span>
         </Link>
       </nav>
 
       <form className="filters" role="search">
-        {tab === "withdrawn" && <input type="hidden" name="tab" value="withdrawn" />}
+        {tab !== "live" && <input type="hidden" name="tab" value={tab} />}
         {imageFilter && <input type="hidden" name="image" value={imageFilter} />}
         <label className="field grow">
           <span>Search</span>
@@ -112,15 +124,31 @@ export default async function MediaPage({ searchParams }: { searchParams: SP }) 
       {filterImage && (
         <p className="notice">Showing captions for one photo: <em>{filterImage.alt_text}</em></p>
       )}
+      {tab === "live" && (
+        <p className="muted small">
+          <strong>Remove</strong> hides a caption and its votes from everyone. You can undo it, and the votes come back on restore.
+          Permanent deletion is only offered once a caption is removed.
+        </p>
+      )}
+      {tab === "removed" && (
+        <p className="muted small">
+          Admins removed these. They are hidden from all users, and the author can&apos;t restore them.
+          <strong> Restore</strong> puts one back in Explore with its votes; <strong>Delete</strong> erases it for good.
+        </p>
+      )}
       {tab === "withdrawn" && (
         <p className="muted small">
-          Authors withdrew these from Explore in My humor. They stay hidden from all users; you can inspect or permanently delete them.
+          Authors moved these to Trash in My humor. They are hidden from all users. <strong>Restore</strong> puts one back in
+          Explore with its votes (the author can do the same from their Trash); <strong>Delete</strong> erases it for good.
         </p>
       )}
 
       {visible.length === 0 ? (
         <section className="panel empty-state">
-          <p className="muted">{q || source || imageFilter ? "No captions match these filters." : "Nothing here yet."}</p>
+          <p className="muted">{q || source || imageFilter ? "No captions match these filters."
+            : tab === "removed" ? "Nothing removed. Captions you remove from the Live tab land here."
+            : tab === "withdrawn" ? "No author has a caption in Trash right now."
+            : "No live captions yet."}</p>
         </section>
       ) : (
         <ul className="media-grid">
@@ -137,13 +165,18 @@ export default async function MediaPage({ searchParams }: { searchParams: SP }) 
                   {r.style !== "unknown" && <> · <span className="badge">{r.style}</span></>}
                   {r.c.admin_edited_at && <> · <span className="badge badge-edit">admin-edited</span></>}
                 </p>
-                {r.deletedAt && <p className="muted small">Withdrawn {fmtDateTime(r.deletedAt)}</p>}
+                {r.deletedAt && <p className="muted small">{tab === "removed" ? "Removed" : "Moved to Trash"} {fmtDateTime(r.deletedAt)}</p>}
               </div>
               <div className="media-foot">
                 {tab === "live" ? <TallyPill tally={r.tally} /> : <span className="muted small">votes hidden</span>}
                 <span className="row">
                   <Link href={`/media/${r.c.id}`} className="button button-ghost button-sm">{tab === "live" ? "Edit" : "View"}</Link>
-                  <DeleteCaptionButton id={r.c.id} preview={r.c.content} votes={total(r.tally)} compact />
+                  {tab === "live"
+                    ? <RemoveCaptionButton id={r.c.id} preview={r.c.content} from="list" compact />
+                    : <>
+                        <RestoreCaptionButton id={r.c.id} from={tab} compact />
+                        <DeleteCaptionButton id={r.c.id} preview={r.c.content} back={tab} compact />
+                      </>}
                 </span>
               </div>
             </li>

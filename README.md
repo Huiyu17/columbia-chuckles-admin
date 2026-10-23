@@ -10,7 +10,8 @@ Separate repository and separate Vercel project, same Supabase database.
 | CREATE AI media | `/media/new` — pick a photo, **Draft with Gemini**, edit, publish (prompt + model recorded) |
 | READ AI media | `/media` (live + withdrawn tabs, search, filters, sort) and `/media/[id]` (provenance, full prompt, voters) |
 | UPDATE AI media | `/media/[id]` — edit caption text and/or reassign its photo |
-| DELETE AI media | Delete buttons on `/media` and `/media/[id]` (confirmation dialog, permanent) |
+| DELETE AI media | Two steps: **Remove** on live captions (reversible, votes kept), then **Delete permanently** from the Removed / Author's Trash tabs (`supabase/011_admin_soft_remove.sql`) |
+| Restore (feedback) | **↺ Restore** on the Removed and Author's Trash tabs and the detail page (`supabase/010_trash_and_restore.sql`, `011`). Authors can restore their own Trash, but never an admin removal. |
 | READ votes/ratings | `/votes` (every vote, filters, most active voters, toughest crowd) plus per-caption and per-user vote lists |
 
 ## Security: three layers
@@ -37,7 +38,10 @@ deliberately not available inside the app, so there is no in-app privilege-escal
 ## Setup
 
 1. **Database** — in the Supabase SQL Editor run `supabase/008_admin_panel.sql` (idempotent; expect
-   6 DEFINER functions in the final result), then `supabase/009_bootstrap_superadmin.sql` with your email.
+   6 DEFINER functions in the final result), then `supabase/009_bootstrap_superadmin.sql` with your email,
+   then `supabase/010_trash_and_restore.sql` (expect 4 DEFINER functions),
+   then `supabase/011_admin_soft_remove.sql` (expect 6 DEFINER functions). Run them in order;
+   re-running 008 or 010 after 011 fails and rolls back harmlessly.
 2. **Env** — copy `.env.example` to `.env.local` and use the same Supabase URL / anon key as the main
    app. `GEMINI_API_KEY` is optional (without it, captions can still be written manually).
 3. **Run** — `npm install`, `npm run dev` (port 3001), then `npm run lint`, `npm run typecheck`, `npm run build`.
@@ -58,12 +62,17 @@ deliberately not available inside the app, so there is no in-app privilege-escal
   that trigger, marks the source generation withdrawn and blocks a stale re-publish; Explore still hides
   withdrawn captions for admins. Run (from the parent folder containing both repos):
   `createdb humor_admin_test && psql -v ON_ERROR_STOP=1 -d humor_admin_test -f scripts/admin-db-test.sql`
-  from this repo's root.
+  from this repo's root. (Now also applies 010 and 011.)
+- `scripts/trash-db-test.sql` — 28 checks for the author Trash / Restore flow (010, with 011 applied).
+- `scripts/removal-db-test.sql` — 42 checks for admin Remove → Restore / permanent Delete (011),
+  including that an author can't restore, re-publish or relabel a moderator removal.
 
 ## Notes
 
-- Deletion is permanent for the caption and its votes; the source photo and the generation record
-  stay (the generation is marked withdrawn so the author's Publish retry can't resurrect it).
+- **Remove** is a soft delete: the caption and its votes are kept and can be restored by an admin.
+  **Delete permanently** (only for hidden captions) erases the caption and its votes; the source
+  photo and generation record stay (the generation is marked withdrawn so the author's Publish
+  retry can't resurrect it).
 - Captions authors withdrew in *My humor* stay hidden from everyone, admins included, except through
   `admin_list_withdrawn_captions()` on the **Withdrawn** tab.
 - Times shown in New York time. Charts use an orange/blue pair validated for colour-vision deficiency,

@@ -117,8 +117,26 @@ export async function updateCaption(_prev: FormState, formData: FormData): Promi
   return { success: "Saved. The change is live in Explore." };
 }
 
-/** DELETE: permanent. Removes the caption and its votes; source photo is kept. */
-export async function deleteCaption(id: string): Promise<FormState> {
+export type HiddenTab = "removed" | "withdrawn";
+const hiddenTab = (v: unknown): HiddenTab => (v === "withdrawn" ? "withdrawn" : "removed");
+
+/** REMOVE (default delete): hide from everyone, keep votes. Only an admin can restore it. */
+export async function removeCaption(id: string, from: "list" | "detail"): Promise<FormState> {
+  const auth = await adminForAction();
+  if (auth.error !== undefined) return { error: auth.error };
+  if (!uuidPattern.test(id)) return { error: "Invalid caption." };
+  const { data, error } = await auth.supabase.rpc("admin_remove_caption", { p_caption_id: id });
+  if (error) {
+    if (error.code === "PGRST202") return { error: "Remove isn't installed yet. Run supabase/011_admin_soft_remove.sql first." };
+    return { error: dbError(error.code, "Could not remove the caption") };
+  }
+  if (data !== true) return { error: "This caption no longer exists. It may have been deleted permanently." };
+  revalidatePath("/", "layout");
+  redirect(from === "detail" ? `/media/${id}?removed=1` : "/media?removed=1");
+}
+
+/** DELETE (second step): permanent. Removes the caption and its votes; source photo is kept. */
+export async function deleteCaption(id: string, back?: HiddenTab): Promise<FormState> {
   const auth = await adminForAction();
   if (auth.error !== undefined) return { error: auth.error };
   if (!uuidPattern.test(id)) return { error: "Invalid caption." };
@@ -126,5 +144,20 @@ export async function deleteCaption(id: string): Promise<FormState> {
   if (error) return { error: dbError(error.code, "Could not delete the caption") };
   // Retries of an already-deleted caption return false: treat as done.
   revalidatePath("/", "layout");
-  redirect("/media?deleted=1");
+  redirect(`/media?tab=${hiddenTab(back)}&deleted=1`);
+}
+
+/** RESTORE: bring a removed or author-trashed caption back to Explore (with its votes). */
+export async function restoreCaption(id: string, from: "detail" | HiddenTab): Promise<FormState> {
+  const auth = await adminForAction();
+  if (auth.error !== undefined) return { error: auth.error };
+  if (!uuidPattern.test(id)) return { error: "Invalid caption." };
+  const { data, error } = await auth.supabase.rpc("admin_restore_caption", { p_caption_id: id });
+  if (error) {
+    if (error.code === "PGRST202") return { error: "Restore isn't installed yet. Run supabase/010 and 011 first." };
+    return { error: dbError(error.code, "Could not restore the caption") };
+  }
+  if (data !== true) return { error: "This caption can't be restored. It may have been permanently deleted." };
+  revalidatePath("/", "layout");
+  redirect(from === "detail" ? `/media/${id}?restored=1` : `/media?tab=${hiddenTab(from)}&restored=1`);
 }

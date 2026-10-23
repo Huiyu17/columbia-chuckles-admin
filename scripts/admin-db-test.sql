@@ -35,6 +35,8 @@ grant usage on schema public to anon, authenticated;
 \i ../the-humor-project/supabase/007_my_humor.sql
 \i supabase/008_admin_panel.sql
 \i supabase/008_admin_panel.sql
+\i supabase/010_trash_and_restore.sql
+\i supabase/011_admin_soft_remove.sql
 
 -- users: admin-to-be, author, fan (profile rows come from the 001 trigger)
 insert into auth.users (id, email, last_sign_in_at) values

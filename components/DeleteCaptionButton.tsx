@@ -1,9 +1,10 @@
 "use client";
 import { useRef, useState, useTransition } from "react";
-import { deleteCaption } from "@/app/actions/media";
+import { deleteCaption, type HiddenTab } from "@/app/actions/media";
 
-export default function DeleteCaptionButton({ id, preview, votes, compact = false }: {
-  id: string; preview: string; votes: number; compact?: boolean;
+/** Second step, offered only for captions that are already hidden. Irreversible. */
+export default function DeleteCaptionButton({ id, preview, back, compact = false }: {
+  id: string; preview: string; back: HiddenTab; compact?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [error, setError] = useState("");
@@ -11,7 +12,7 @@ export default function DeleteCaptionButton({ id, preview, votes, compact = fals
   function confirm() {
     setError("");
     start(async () => {
-      const res = await deleteCaption(id); // redirects on success
+      const res = await deleteCaption(id, back); // redirects on success
       if (res?.error) setError(res.error);
     });
   }
@@ -25,8 +26,9 @@ export default function DeleteCaptionButton({ id, preview, votes, compact = fals
         <h2 id={`del-${id}`}>Delete this caption permanently?</h2>
         <blockquote className="caption-quote">“{preview}”</blockquote>
         <p className="muted small">
-          This removes it from Explore and every user&apos;s collections, and deletes its {votes} vote{votes === 1 ? "" : "s"}.
-          The author&apos;s photo and generation record are kept, and the author can&apos;t re-publish it. This cannot be undone.
+          The caption and all of its votes are erased, and nobody can restore it, including the author and you.
+          The author&apos;s photo and generation record are kept, and the author can&apos;t re-publish it.
+          <strong> This cannot be undone.</strong>
         </p>
         {error && <p role="alert" className="form-error">{error}</p>}
         <div className="row row-end">
@@ -34,7 +36,7 @@ export default function DeleteCaptionButton({ id, preview, votes, compact = fals
             Cancel
           </button>
           <button type="button" className="button button-danger" onClick={confirm} disabled={pending}>
-            {pending ? "Deleting…" : "Yes, delete"}
+            {pending ? "Deleting…" : "Yes, delete forever"}
           </button>
         </div>
       </dialog>

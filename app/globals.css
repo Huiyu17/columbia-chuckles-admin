@@ -76,6 +76,18 @@ code { background: #f1efe9; padding: 1px 5px; border-radius: 5px; font-size: 0.9
 .button-ghost:hover:not([aria-disabled="true"]) { background: #fff; }
 .button-danger { background: var(--danger); color: #fff; }
 .button-danger-ghost { background: transparent; color: var(--danger); border-color: #f0c9c4; }
+.button-warn { background: #b45309; color: #fff; }
+.button-warn:hover:not(:disabled) { background: #9a4708; }
+.button-warn-ghost { background: transparent; color: #9a4708; border-color: #f0d2b0; }
+.button-warn-ghost:hover:not(:disabled) { background: #fff7ed; }
+.badge-removed { background: #fdecd8; color: #8a3a08; }
+.warn-zone { border-color: #f0d2b0; }
+.dialog-points { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); display: flex; flex-direction: column; gap: 6px; }
+.button-restore { background: #e3efe5; color: #1f5a33; border-color: #bcd9c4; }
+.button-restore:hover:not(:disabled) { background: #d5e8d9; }
+.restore-wrap { display: inline-flex; flex-direction: column; gap: 4px; }
+.restore-panel { border-color: #bcd9c4; background: #f6fbf7; }
+.restore-panel > p { margin: 4px 0 14px; }
 .button-sm { min-height: 34px; padding: 5px 11px; font-size: 13px; }
 .button-wide { width: 100%; }
 .button-sidebar { background: transparent; color: #e9e7e0; border-color: #4a4b43; width: 100%; }
