@@ -1,16 +1,20 @@
 import type { RecordRow } from "./resources";
+import { unavailableCaption, type CaptionLifecycle } from "./caption-lifecycle";
 
 export type SummaryRelations = {
   chains: Record<string, RecordRow>;
   models: Record<string, RecordRow>;
   providers: Record<string, RecordRow>;
   users: Record<string, RecordRow>;
+  requests: Record<string, RecordRow>;
+  captionStates: Record<string, CaptionLifecycle>;
 };
-export const emptyRelations = (): SummaryRelations => ({ chains: {}, models: {}, providers: {}, users: {} });
+export const emptyRelations = (): SummaryRelations => ({ chains: {}, models: {}, providers: {}, users: {}, requests: {}, captionStates: {} });
 type Fact = { label: string; value: string };
 export type ResourceSummary = {
   title: string; preview?: string; previewLabel?: string; facts: Fact[];
   status?: string; tone?: "ok" | "warn" | "neutral";
+  statusLabel?: string; caption?: CaptionLifecycle;
 };
 
 const text = (value: unknown) => typeof value === "string" ? value.trim() : "";
@@ -55,6 +59,7 @@ export function summarizeResource(key: string, row: RecordRow, relations = empty
   const name = [text(user?.first_name), text(user?.last_name)].filter(Boolean).join(" ");
   let title = text(row.name), detail = "", label: string | undefined;
   let status: string | undefined, tone: ResourceSummary["tone"];
+  let caption: CaptionLifecycle | undefined;
 
   switch (key) {
     case "prompt-chains": detail = text(row.description); break;
@@ -84,6 +89,7 @@ export function summarizeResource(key: string, row: RecordRow, relations = empty
       fact("User", name);
       status = text(row.status) || undefined;
       tone = status === "completed" ? "ok" : status === "failed" ? "warn" : "neutral";
+      caption = relations.captionStates[String(row.id)] ?? unavailableCaption();
       break;
     }
     case "generation-examples":
@@ -93,6 +99,8 @@ export function summarizeResource(key: string, row: RecordRow, relations = empty
     case "llm-responses":
       title = text(row.response) || text(row.error) || "No response recorded";
       if (text(row.error)) { status = "Failed"; tone = "warn"; detail = text(row.error); label = "Error"; }
+      else if (text(row.response)) { status = "Completed"; tone = "ok"; }
+      caption = relations.captionStates[String(row.generation_request_id)] ?? unavailableCaption();
       fact("Model", modelName || "Model unavailable");
       if (row.latency_ms != null) fact("Latency", `${row.latency_ms} ms`);
       fact("Input tokens", row.input_tokens); fact("Output tokens", row.output_tokens);
@@ -104,5 +112,5 @@ export function summarizeResource(key: string, row: RecordRow, relations = empty
       fact("Uploaded by", row.user_id == null ? "Preset image" : name || "Profile name unavailable"); break;
   }
   return { title: preview(title || "Unnamed record", 120), preview: preview(detail) || undefined,
-    previewLabel: label, facts, status, tone };
+    previewLabel: label, facts, status, tone, caption, statusLabel: caption ? "Generation" : undefined };
 }

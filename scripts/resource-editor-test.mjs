@@ -46,6 +46,7 @@ const entry = await add(path.join(root, "editor-test-entry.ts"), `
   import { createRoot } from 'react-dom/client';
   import ResourceEditor from './components/ResourceEditor.tsx';
   import RecordIdentifier from './components/RecordIdentifier.tsx';
+  import RefreshStatusesButton from './components/RefreshStatusesButton.tsx';
   const columns = [
     {name:'id',type:'uuid',primary:true,required:true},
     {name:'enabled',type:'boolean',required:true},
@@ -58,12 +59,13 @@ const entry = await add(path.join(root, "editor-test-entry.ts"), `
   window.failSave = false;
   window.creating = false;
   const root = createRoot(document.getElementById('root'));
-  window.refreshRecord = () => root.render(React.createElement(React.Fragment,null,
+  window.refreshRecord = () => { window.refreshCalls = (window.refreshCalls ?? 0) + 1; root.render(React.createElement(React.Fragment,null,
     React.createElement('pre', {id:'saved-record'}, JSON.stringify(window.record)),
     React.createElement(RecordIdentifier, {id:window.record.id}),
     window.showSecondID ? React.createElement(RecordIdentifier, {id:window.secondID}) : null,
+    React.createElement(RefreshStatusesButton),
     React.createElement(ResourceEditor, {resource:'prompt-chain-mix',mode:'update',columns,
-      row:window.creating ? undefined : window.record})));
+      row:window.creating ? undefined : window.record}))); };
   window.saveRecord = async (operation, id, payload) => {
     window.lastSavedId = id;
     await new Promise(r => setTimeout(r, 10));
@@ -101,6 +103,12 @@ try {
   async function check(name, fn) { await fn(); console.log(`ok ${++checks} - ${name}`); }
 
   const copy = page.getByRole('button', {name:'Copy complete record ID',exact:true}).first();
+  await check("refresh statuses requests fresh server data without modifying the record", async () => {
+    const before = await page.evaluate(() => ({ calls:window.refreshCalls, record:JSON.stringify(window.record) }));
+    await page.getByRole('button', {name:'Refresh generation and caption statuses'}).click();
+    assert.equal(await page.evaluate(() => window.refreshCalls), before.calls + 1);
+    assert.equal(await page.evaluate(() => JSON.stringify(window.record)), before.record);
+  });
   await check("short ID shows eight characters plus ellipsis and copying uses the complete UUID", async () => {
     assert.equal(await page.locator('.record-short-id').textContent(), 'ID: 5faf8067…');
     await page.evaluate(() => {

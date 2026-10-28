@@ -20,6 +20,9 @@ function load(relative) {
     jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
   } }).outputText;
   const localRequire = name => {
+    if (name === "next/link") return function LinkStub(props) {
+      return React.createElement("a", { href: props.href }, props.children);
+    };
     if (name === "next/image") return function ImageStub(props) {
       return React.createElement("img", { src: props.src, alt: props.alt, width: props.width, height: props.height });
     };
@@ -35,6 +38,7 @@ function load(relative) {
 const { summarizeResource: summary, emptyRelations, preview, resourceDate } = load("lib/resource-summary.ts");
 const { loadResourceRelations } = load("lib/resource-relations.ts");
 const Card = load("components/ResourceCardSummary.tsx").default;
+const { captionLifecycle, unavailableCaption } = load("lib/caption-lifecycle.ts");
 const id = "70000000-0000-4000-8000-000000000001";
 const relations = emptyRelations();
 relations.chains[id] = { id, name: "Grounded campus caption" };
@@ -129,5 +133,97 @@ await check("lookup failures do not prevent records rendering or invent related 
 await check("resources without visible relationship IDs make no extra RPCs", async () => {
   const result = await loadResourceRelations({ rpc: () => { throw Error("Unexpected read"); } }, "terms", [{ term: "A term" }]);
   assert.equal(result.unavailable, false);
+});
+const generationId = "80000000-0000-4000-8000-000000000001";
+const captionId = "90000000-0000-4000-8000-000000000001";
+const completed = { id, generation_id: generationId, status: "completed" };
+const generation = { id: generationId, withdrawn_at: null };
+const published = { id: captionId, generation_id: generationId, deleted_at: null, deleted_by: null };
+await check("published captions have a working details link and a separate lifecycle state", () => {
+  const state = captionLifecycle(completed, generation, [published]);
+  assert.equal(state.state, "published"); assert.equal(state.href, `/media/${captionId}`);
+  const copy = emptyRelations(); copy.captionStates[id] = state;
+  const value = summary("generation-requests", completed, copy);
+  assert.equal(value.status, "completed"); assert.equal(value.statusLabel, "Generation"); assert.equal(value.caption.label, "Published");
+});
+await check("never-published previews are not mislabeled as deleted", () => {
+  const state = captionLifecycle(completed, generation, []);
+  assert.equal(state.state, "draft"); assert.equal(state.label, "Not published"); assert.equal(state.href, undefined);
+});
+await check("author Trash, admin removal and restored captions are distinguished", () => {
+  for (const [actor, expected] of [["author", "author-trash"], ["admin", "admin-removed"]]) {
+    const state = captionLifecycle(completed, { ...generation, withdrawn_at: "2026-10-28T20:00:00Z" }, [{ ...published, deleted_at: "2026-10-28T20:00:00Z", deleted_by: actor }]);
+    assert.equal(state.state, expected); assert.equal(state.href, `/media/${captionId}`); assert.match(state.description, /restore/);
+  }
+  assert.equal(captionLifecycle(completed, generation, [published]).state, "published");
+});
+await check("permanent deletion requires a withdrawal marker AND no live or hidden caption", () => {
+  const state = captionLifecycle(completed, { ...generation, withdrawn_at: "2026-10-28T20:00:00Z" }, []);
+  assert.equal(state.state, "deleted"); assert.equal(state.label, "Permanently deleted");
+  assert.equal(state.href, undefined); assert.match(state.description, /original AI response is retained/);
+  assert.equal(captionLifecycle(completed, undefined, []).state, "unavailable");
+});
+await check("failed and running attempts without drafts are not reported as deleted", () => {
+  assert.equal(captionLifecycle({ status: "failed" }, undefined, []).state, "not-created");
+  assert.equal(captionLifecycle({ status: "running" }, undefined, []).state, "pending");
+  assert.equal(captionLifecycle({ status: "completed" }, undefined, []).state, "unavailable");
+});
+await check("request and response cards display generation result independently from deletion", () => {
+  const copy = emptyRelations(); copy.captionStates[id] = captionLifecycle(completed, { ...generation, withdrawn_at: "2026-10-28T20:00:00Z" }, []);
+  for (const [resource, row] of [["generation-requests", completed], ["llm-responses", { generation_request_id: id, response: "Original AI response" }]]) {
+    const html = renderToStaticMarkup(React.createElement(Card, { resource, row, relations: copy }));
+    assert.ok(html.includes("Generation:")); assert.ok(html.includes("Completed")); assert.ok(html.includes("Caption:"));
+    assert.ok(html.includes("Permanently deleted")); assert.ok(!html.includes("href="));
+  }
+  assert.equal(unavailableCaption().state, "unavailable");
+});
+
+function lifecycleClient({ generations = [generation], captions = [], hidden = [], fail, requests = [completed] } = {}) {
+  const calls = [];
+  const sources = { generations, captions, hidden };
+  function query(table) {
+    let field, ids;
+    return {
+      select() { return this; },
+      in(column, values) { field = column; ids = values; return this; },
+      order() { return this; },
+      async range(from, to) {
+        calls.push({ table, from, to, ids });
+        const rows = (sources[table] ?? []).filter(row => !field || ids.includes(row[field]));
+        return fail === table ? { data: null, error: { message: "Unavailable" } } : { data: rows.slice(from, to + 1), error: null };
+      },
+    };
+  }
+  return { calls, client: {
+    from: table => query(table),
+    rpc: (name, args) => name === "admin_list_withdrawn_captions" ? query("hidden")
+      : Promise.resolve({ data: { rows: args.resource === "generation_requests" ? requests : [] }, error: null }),
+  } };
+}
+await check("lifecycle lookup reads hidden captions through the existing admin RPC", async () => {
+  const fixture = lifecycleClient({ hidden: [{ ...published, deleted_at: "2026-10-28T20:00:00Z", deleted_by: "author" }] });
+  const result = await loadResourceRelations(fixture.client, "generation-requests", [completed]);
+  assert.equal(result.unavailable, false); assert.equal(result.relations.captionStates[id].state, "author-trash");
+  assert.deepEqual(fixture.calls.find(call => call.table === "hidden").ids, [generationId]);
+});
+await check("failed hidden-caption reads cannot cause false permanent-deletion labels", async () => {
+  const fixture = lifecycleClient({ generations: [{ ...generation, withdrawn_at: "2026-10-28T20:00:00Z" }], fail: "hidden" });
+  const result = await loadResourceRelations(fixture.client, "generation-requests", [completed]);
+  assert.equal(result.unavailable, true); assert.equal(result.relations.captionStates[id].state, "unavailable");
+});
+await check("response lifecycle uses its actual linked request and generation", async () => {
+  const fixture = lifecycleClient({ captions: [published] });
+  const result = await loadResourceRelations(fixture.client, "llm-responses", [{ id: "response", generation_request_id: id }]);
+  assert.equal(result.relations.captionStates[id].state, "published");
+  assert.equal(summary("llm-responses", { generation_request_id: id, response: "A caption" }, result.relations).caption.state, "published");
+});
+await check("hidden-caption pagination avoids treating later-page records as deleted", async () => {
+  const otherGeneration = "80000000-0000-4000-8000-000000000002";
+  const filler = Array.from({ length: 1000 }, (_, n) => ({ ...published, id: `filler-${n}`, generation_id: otherGeneration, deleted_at: "2026-10-28T20:00:00Z", deleted_by: "admin" }));
+  const fixture = lifecycleClient({ generations: [generation, { id: otherGeneration, withdrawn_at: "2026-10-28T20:00:00Z" }],
+    hidden: [...filler, { ...published, deleted_at: "2026-10-28T20:00:00Z", deleted_by: "author" }] });
+  const result = await loadResourceRelations(fixture.client, "generation-requests", [completed, { ...completed, id: "other-request", generation_id: otherGeneration }]);
+  assert.equal(result.relations.captionStates[id].state, "author-trash");
+  assert.equal(fixture.calls.filter(call => call.table === "hidden").length, 2);
 });
 console.log(`\n${count} resource summary checks passed.`);

@@ -1,5 +1,21 @@
 # Admin panel feedback log
 
+## Feedback 6: distinguish generation results from caption availability
+
+- Generation requests and LLM responses now label the generation result separately
+  from the caption's current publishing state: Published, Not published, In author's
+  Trash, Removed by admin, Permanently deleted, or Status unavailable.
+- Failed/running attempts without a draft show Not created / Not created yet.
+- Status is read from the linked generation plus both live and hidden captions.
+  Permanent deletion requires a withdrawal marker and complete successful reads
+  confirming that no caption remains; missing records or query failures are not
+  treated as proof of deletion. No database migration is needed.
+- A short explanation clarifies whether restoration is possible and why original
+  AI history remains. Existing captions link to their admin details; permanently
+  deleted captions have no broken details link.
+- Refresh statuses re-reads current data after actions in the main app. It does
+  not alter any records or rerun AI generation.
+
 ## Feedback 5: subtle record IDs with full-key copying
 
 - Every Week 7 resource card retains its readable heading and adds a muted ID

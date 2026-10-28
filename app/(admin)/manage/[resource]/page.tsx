@@ -6,6 +6,7 @@ import { loadResourceRelations } from "@/lib/resource-relations";
 import ResourceEditor from "@/components/ResourceEditor";
 import ResourceCardSummary from "@/components/ResourceCardSummary";
 import RecordIdentifier from "@/components/RecordIdentifier";
+import RefreshStatusesButton from "@/components/RefreshStatusesButton";
 
 export default async function ResourcePage({ params, searchParams }: {
   params: Promise<{ resource: string }>;
@@ -29,8 +30,11 @@ export default async function ResourcePage({ params, searchParams }: {
     <form className="filters"><label className="field grow"><span>Search all record fields</span><input name="q" defaultValue={q} maxLength={200} /></label><button className="button button-dark">Search</button></form>
     {error && <div role="alert" className="card stack-sm"><h2>Could not load records</h2><p>{error.message}</p><p>Verify the configured Supabase project and apply supabase/012_week7_observability.sql. Missing tables are reported rather than shown as empty data.</p></div>}
     {result && <>
-      <p className="muted">{result.total} matching records · Page {page} of {Math.max(1, Math.ceil(result.total / 25))}</p>
-      {unavailable && <p className="small muted" role="status">Some related names could not be loaded. Their IDs remain available in the full records.</p>}
+      <div className="row resource-results-head">
+        <p className="muted">{result.total} matching records · Page {page} of {Math.max(1, Math.ceil(result.total / 25))}</p>
+        {["generation-requests", "llm-responses"].includes(key) && <RefreshStatusesButton />}
+      </div>
+      {unavailable && <p className="small muted" role="status">Some related information could not be loaded. Refresh to try again; full records remain available.</p>}
       {resource.mode === "crud" && <details className="card"><summary>Create {resource.title.toLowerCase()}</summary><ResourceEditor resource={key} mode={resource.mode} columns={result.columns} /></details>}
       {result.rows.length === 0 && <p className="card">No records found. Try a different search.</p>}
       {result.rows.map((row, index) => <article className="card stack-md" key={String(row[primary] ?? index)}>

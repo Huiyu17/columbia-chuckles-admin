@@ -27,6 +27,9 @@
 .resource-status { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #efede6; }
 .resource-status-ok { background: #e3efe5; color: #1f5a33; }
 .resource-status-warn { background: #fdecd8; color: #8a3a08; }
+.resource-state-group { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.resource-caption-note { max-width: 100ch; }
+.resource-results-head { justify-content: space-between; }
 .record-identifier { gap: 8px; }
 .record-short-id { white-space: nowrap; }
 .record-id-copy { min-height: 32px; padding: 3px 9px; border: 1px solid var(--line); border-radius: 6px; background: transparent; font-size: 12px; }

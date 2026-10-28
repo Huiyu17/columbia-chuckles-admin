@@ -43,7 +43,7 @@ the caption app is separate and is not changed by this migration.
 
 - Run `npm run typecheck`, `npm run lint`, `npm run build`, `npm run test:db`,
   and `npm run test:pipeline` (with the sibling main app repository present).
-  The database suite runs 103 checks against in-memory PostgreSQL (PGlite), using a
+  The database suite runs 104 checks against in-memory PostgreSQL (PGlite), using a
   minimal Week 6 fixture and the actual 008/012/013 migrations. It checks repeatability,
   anonymous/member access denial, CRUD, read-only restrictions, mix validation,
   search, pagination, preservation of captions/votes on attempted image deletion,

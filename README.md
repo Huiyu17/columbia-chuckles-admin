@@ -66,7 +66,7 @@ deliberately not available inside the app, so there is no in-app privilege-escal
 
 - Week 7 generation integration: see [rollout and acceptance](docs/generation-pipeline.md).
   Apply migration 013 after 012, then deploy both apps. `npm run test:db` checks
-  103 database behaviors; `npm run test:pipeline` checks the main app's real
+  104 database behaviors; `npm run test:pipeline` checks the main app's real
   orchestration with fake provider/transport responses, without consuming API quota.
 
 - `scripts/admin-db-test.sql` — 41 checks on a throwaway local PostgreSQL 16 database rebuilt from

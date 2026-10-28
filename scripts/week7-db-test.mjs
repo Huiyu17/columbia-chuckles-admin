@@ -252,5 +252,19 @@ try {
     await session("postgres");
     assert.equal((await db.query("select count(*)::int n from public.llm_models")).rows[0].n, count);
   });
+  await check("permanently deleting a caption retains its completed request and AI response", async () => {
+    await session("postgres");
+    const caption = (await db.query("insert into public.captions(image_id,generation_id,content) values ($1,$2,'Temporary published caption') returning id", [image, draft])).rows[0].id;
+    await db.query("insert into public.caption_votes(user_id,caption_id,value) values ($1,$2,1)", [member, caption]);
+    await session("authenticated", admin);
+    await db.query("select public.admin_delete_caption($1)", [caption]);
+    const request = (await read("generation_requests", 1, plan.request_id)).rows[0];
+    assert.equal(request.status, "completed"); assert.equal(request.generation_id, draft);
+    assert.equal((await read("llm_responses", 1, plan.request_id)).total, 1);
+    await session("postgres");
+    assert.ok((await db.query("select withdrawn_at from public.generations where id=$1", [draft])).rows[0].withdrawn_at);
+    assert.equal((await db.query("select count(*)::int n from public.captions where id=$1", [caption])).rows[0].n, 0);
+    assert.equal((await db.query("select count(*)::int n from public.caption_votes where caption_id=$1", [caption])).rows[0].n, 0);
+  });
   console.log(`\n${checks} PostgreSQL checks passed.`);
 } finally { await db.close(); }
