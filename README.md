@@ -1,7 +1,16 @@
-# Columbia Chuckles · Backstage (Week 6 admin panel)
+# Columbia Chuckles · Backstage (Week 6 + Week 7 admin panel)
 
 Superadmin-only admin area for the [Columbia Chuckles](../the-humor-project) caption app.
 Separate repository and separate Vercel project, same Supabase database.
+
+Week 7 adds searchable, paginated readers for prompt chains, chain steps, generation
+requests and LLM responses; read/update for chain mix; and CRUD for terms, generation
+examples, LLM models/providers, signup domains, whitelisted emails and images,
+including image uploads and previews. Existing user and AI media readers remain available.
+All new pages and actions check superadmin access, and database RPCs independently
+enforce it. See [Week 7 setup and deployment](docs/week7.md) and apply
+`supabase/012_week7_observability.sql` after the Week 6 migrations before opening
+the new pages. Run `npm run test:db` for isolated PostgreSQL regression checks.
 
 | Requirement | Where |
 | --- | --- |
@@ -54,6 +63,11 @@ deliberately not available inside the app, so there is no in-app privilege-escal
    disable Vercel Authentication so the login wall is the app's own (test in Incognito).
 
 ## Tests
+
+- Week 7 generation integration: see [rollout and acceptance](docs/generation-pipeline.md).
+  Apply migration 013 after 012, then deploy both apps. `npm run test:db` checks
+  103 database behaviors; `npm run test:pipeline` checks the main app's real
+  orchestration with fake provider/transport responses, without consuming API quota.
 
 - `scripts/admin-db-test.sql` — 41 checks on a throwaway local PostgreSQL 16 database rebuilt from
   the main project's migrations 001–007 plus 008 (applied twice): non-admins and anon are denied every

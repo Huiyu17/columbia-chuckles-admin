@@ -112,6 +112,7 @@ export default async function MediaDetailPage({ params, searchParams }: {
                 <div><dt>Original AI text</dt><dd>“{generation.generated_content}”</dd></div>
               )}
               <div><dt>Caption id</dt><dd className="mono small">{caption.id}</dd></div>
+              {generation && <div><dt>Generation trace</dt><dd><Link className="link-strong" href={`/manage/generation-requests?q=${encodeURIComponent(generation.id)}`}>View request and LLM response</Link></dd></div>}
             </dl>
             {generation?.prompt && (
               <details className="details">

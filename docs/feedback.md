@@ -1,5 +1,46 @@
 # Admin panel feedback log
 
+## Feedback 5: subtle record IDs with full-key copying
+
+- Every Week 7 resource card retains its readable heading and adds a muted ID
+  showing the first eight characters of its actual primary key.
+- Copy ID copies the complete key, briefly confirms success, and gives visible
+  guidance on permission denial or unsupported clipboard access.
+- Complete IDs remain in expanded details. Editing, deleting, searching and
+  relationship links continue using complete keys; short IDs are display only.
+- Browser checks cover full-key copying, feedback, unavailable/denied clipboard,
+  retry, two records sharing a short prefix, and editing with the full key.
+
+## Feedback 4: readable Week 7 resource summaries
+
+- Resource cards show actual names or short scene/prompt/response/alt-text previews
+  instead of UUID headings. Steps show one-based display numbers and chain/model
+  context; mix cards show chain names, weights and enabled status.
+- Related names use existing read-only admin RPCs and profile reads, deduplicated
+  within the visible page. Missing relationships have explicit fallback labels.
+- Response cards include model, latency and reported token usage; timestamps use
+  New York time with the timezone abbreviation. Full original content and IDs stay
+  in expanded details, and editing behavior is preserved.
+- Removed duplicate resource navigation above the search form; the sidebar remains
+  the navigation for all resource sections.
+- `node scripts/resource-summary-test.mjs` checks all resource types, missing data,
+  truncation, rendered output and read-only relationship lookups. No schema, RLS,
+  authentication, CRUD or existing API behavior changes are required.
+
+## Feedback 3: saved resource values must stay in sync
+
+The record details refreshed after saving, but the open editor could reset to
+previous values (for example, details showed `enabled: true` while the select
+still showed False).
+
+- Resource forms now keep submitted edit values while saved data refreshes.
+- Refreshed records reset the field subtree, updating text, booleans and null
+  checkboxes without closing the editor or losing the success message.
+- Failed saves preserve the input; create forms clear only after success.
+- `node scripts/resource-editor-test.mjs` runs six real React/Chromium regression
+  checks with mocked server calls, without touching production data. It requires
+  Playwright and Chromium (or the available Codex runtime browser dependencies).
+
 ## Feedback 1: dashboard information density
 
 > "Dashboard 信息密度略高 … 推荐把内容视觉上分成三个区块：Overview → Humor insights →

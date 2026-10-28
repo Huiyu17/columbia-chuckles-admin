@@ -3,6 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import BrandMark from "./BrandMark";
 import LogoutButton from "./LogoutButton";
+import { resources } from "@/lib/resources";
 
 const links = [
   { href: "/", label: "Laugh report", icon: "◎" },
@@ -25,6 +26,14 @@ export default function Sidebar({ email }: { email: string }) {
             aria-current={isActive(l.href) ? "page" : undefined}>
             <span aria-hidden="true" className="side-icon">{l.icon}</span>
             {l.label}
+          </Link>
+        ))}
+        <span className="sidebar-section">Generation & access</span>
+        {Object.entries(resources).map(([key, resource]) => (
+          <Link key={key} href={`/manage/${key}`}
+            className={isActive(`/manage/${key}`) ? "side-link active" : "side-link"}
+            aria-current={isActive(`/manage/${key}`) ? "page" : undefined}>
+            {resource.title}
           </Link>
         ))}
       </nav>

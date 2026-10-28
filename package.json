@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "eslint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:db": "node scripts/week7-db-test.mjs",
+    "test:auth": "node scripts/check-login-wall.mjs",
+    "test:pipeline": "node scripts/generation-pipeline-test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",
@@ -18,6 +21,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
