@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test:db": "node scripts/week7-db-test.mjs",
     "test:auth": "node scripts/check-login-wall.mjs",
-    "test:pipeline": "node scripts/generation-pipeline-test.mjs"
+    "test:pipeline": "node scripts/generation-pipeline-test.mjs",
+    "test:chains": "node scripts/prompt-chain-test.mjs"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",

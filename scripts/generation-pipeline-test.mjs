@@ -39,6 +39,14 @@ await check("invalid plan prevents provider call", async () => {
   const f = fixture({ database: { rpc: async () => ({ data: {}, error: null }) } });
   assert.ok((await runCaptionGeneration(f.input)).error); assert.equal(f.aiCalls(), 0);
 });
+await check("disabled or zero-weight chains clearly report unavailable without suggesting retry", async () => {
+  const f = fixture({ database: { rpc: async () => ({ data: null, error: { code: "22023", message: "No enabled prompt chain with positive weight" } }) } });
+  const result = await runCaptionGeneration(f.input);
+  assert.match(result.error, /currently unavailable/);
+  assert.match(result.error, /administrator/);
+  assert.doesNotMatch(result.error, /try again|retry|22023|positive weight/i);
+  assert.equal(f.aiCalls(), 0);
+});
 await check("provider errors record a failed completion with no sensitive error message", async () => {
   const f = fixture({ generate: async () => { throw Error("SECRET_API_KEY provider detail"); } });
   const result = await runCaptionGeneration(f.input);

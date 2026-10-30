@@ -266,5 +266,23 @@ try {
     assert.equal((await db.query("select count(*)::int n from public.captions where id=$1", [caption])).rows[0].n, 0);
     assert.equal((await db.query("select count(*)::int n from public.caption_votes where caption_id=$1", [caption])).rows[0].n, 0);
   });
+  await check("second real chain is repeatable and preserves existing mix settings", async () => {
+    await session("postgres");
+    const sql = await readFile(new URL("../supabase/014_second_prompt_chain.sql", import.meta.url), "utf8");
+    const existing = (await db.query("select weight, enabled from public.prompt_chain_mix where prompt_chain_id=$1", [fixtureChain])).rows[0];
+    await db.exec(sql); await db.exec(sql);
+    assert.deepEqual((await db.query("select weight, enabled from public.prompt_chain_mix where prompt_chain_id=$1", [fixtureChain])).rows[0], existing);
+    const second = '70000000-0000-4000-8000-000000000004';
+    assert.equal((await db.query("select count(*)::int n from public.prompt_chain_steps where prompt_chain_id=$1", [second])).rows[0].n, 1);
+    await db.query("update public.prompt_chain_mix set weight=0 where prompt_chain_id<>$1", [second]);
+    await session("authenticated", member);
+    const routed = await start(); assert.match(routed.prompt, /imagined inner thought/);
+    await session("authenticated", admin);
+    assert.equal((await read("generation_requests", 1, routed.request_id)).rows[0].prompt_chain_id, second);
+    await write("prompt_chain_mix", "update", (await read("prompt_chain_mix", 1, second)).rows[0].id, { enabled: false, weight: 2 });
+    await session("postgres"); await db.exec(sql);
+    const saved = (await db.query("select enabled, weight from public.prompt_chain_mix where prompt_chain_id=$1", [second])).rows[0];
+    assert.equal(saved.enabled, false); assert.equal(Number(saved.weight), 2);
+  });
   console.log(`\n${checks} PostgreSQL checks passed.`);
 } finally { await db.close(); }

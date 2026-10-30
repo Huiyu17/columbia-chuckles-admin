@@ -6,6 +6,8 @@ const paths = ["/", "/users", "/media", "/votes", ...[
   "generation-requests", "generation-examples", "llm-models", "llm-providers",
   "llm-responses", "signup-domains", "whitelisted-emails", "images",
 ].map(key => `/manage/${key}`)];
+paths.push('/manage/prompt-chains?tab=test','/manage/prompt-chains?tab=steps&chain=70000000-0000-4000-8000-000000000001');
+paths.push('/manage/llm-models?tab=providers');
 for (const path of paths) {
   const response = await fetch(new URL(path, origin), { redirect: "manual" });
   assert.equal(response.status, 307, `${path} must redirect anonymous visitors`);

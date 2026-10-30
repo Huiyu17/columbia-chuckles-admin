@@ -1,6 +1,6 @@
 // Presentation/read-only lookup checks. No credentials, network calls or writes.
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -20,15 +20,16 @@ function load(relative) {
     jsx: ts.JsxEmit.ReactJSX, esModuleInterop: true,
   } }).outputText;
   const localRequire = name => {
+    if (name === "./ResourceEditor") return { __esModule: true, default: props => React.createElement('form', {'data-resource':props.resource,'data-operation':props.row?'edit':'create'},props.row?'Edit form':'Create form') };
     if (name === "next/link") return function LinkStub(props) {
-      return React.createElement("a", { href: props.href }, props.children);
+      return React.createElement("a", { href: props.href, 'aria-current': props['aria-current'] }, props.children);
     };
     if (name === "next/image") return function ImageStub(props) {
       return React.createElement("img", { src: props.src, alt: props.alt, width: props.width, height: props.height });
     };
     if (name.startsWith("@/") || name.startsWith(".")) {
       const target = name.startsWith("@/") ? path.join(root, name.slice(2)) : path.resolve(path.dirname(filename), name);
-      return load(/\.tsx?$/.test(target) ? target : `${target}.ts`);
+      return load(/\.tsx?$/.test(target) ? target : existsSync(`${target}.ts`) ? `${target}.ts` : `${target}.tsx`);
     }
     return require(name);
   };
@@ -39,6 +40,11 @@ const { summarizeResource: summary, emptyRelations, preview, resourceDate } = lo
 const { loadResourceRelations } = load("lib/resource-relations.ts");
 const Card = load("components/ResourceCardSummary.tsx").default;
 const { captionLifecycle, unavailableCaption } = load("lib/caption-lifecycle.ts");
+const { referenceField, referenceOption, fieldHelp } = load("lib/reference-fields.ts");
+const { readReferenceOptions, loadReferenceChoices } = load("lib/reference-options.ts");
+const WorkflowGuide = load("components/WorkflowGuide.tsx").default;
+const ChainOverview = load("components/PromptChainOverview.tsx").default;
+const ChainTabs = load("components/PromptChainTabs.tsx").default;
 const id = "70000000-0000-4000-8000-000000000001";
 const relations = emptyRelations();
 relations.chains[id] = { id, name: "Grounded campus caption" };
@@ -225,5 +231,130 @@ await check("hidden-caption pagination avoids treating later-page records as del
   const result = await loadResourceRelations(fixture.client, "generation-requests", [completed, { ...completed, id: "other-request", generation_id: otherGeneration }]);
   assert.equal(result.relations.captionStates[id].state, "author-trash");
   assert.equal(fixture.calls.filter(call => call.table === "hidden").length, 2);
+});
+await check("workflow guidance explains purpose, sequence and weights without exposing UUIDs", () => {
+  for (const resource of ['prompt-chains','prompt-chain-steps','prompt-chain-mix']) {
+    const html = renderToStaticMarkup(React.createElement(WorkflowGuide,{resource}));
+    for(const label of ['Caption workflows','AI instructions','Workflow selection']) assert.ok(html.includes(label));
+    assert.ok(html.includes('view-only')); assert.ok(!html.includes(id));
+  }
+  assert.match(fieldHelp('prompt-chain-mix','weight'),/Relative selection chance/);
+  assert.match(fieldHelp('prompt-chain-mix','enabled'),/generation stops/);
+  assert.equal(renderToStaticMarkup(React.createElement(WorkflowGuide,{resource:'terms'})),'');
+});
+await check("all known references use readable record labels rather than requiring UUID entry", () => {
+  for(const field of ['prompt_chain_id','provider_id','llm_model_id','image_id','user_id','generation_id','generation_request_id','prompt_chain_step_id']) assert.ok(referenceField(field));
+  assert.equal(referenceOption('prompt_chain_id',{id,name:'Grounded campus caption'}).label,'Grounded campus caption');
+  assert.equal(referenceOption('image_id',{id,alt_text:'A sleepy student',url:'https://example.com/image.jpg'}).imageUrl,'https://example.com/image.jpg');
+  assert.equal(referenceOption('user_id',{id,first_name:'Campus',last_name:'Creator',email:'creator@example.edu'}).label,'Campus Creator (creator@example.edu)');
+  assert.equal(referenceOption('provider_id',{id}).label,'Unnamed provider');
+  assert.ok(referenceOption('image_id',{id,alt_text:'😀'.repeat(200)}).label.endsWith('…'));
+});
+await check("reference search uses existing read-only RPCs and preserves selected records outside the current page", async () => {
+  const calls=[];
+  const client={rpc:async(name,args)=>{
+    calls.push({name,args});
+    return {error:null,data:{rows:args.search_text===id?[{id,name:'Currently selected workflow'}]:[{id:'other',name:'Search match'}],total:1}};
+  }};
+  const result=await readReferenceOptions(client,'prompt_chain_id','Search',1,[id]);
+  assert.equal(result.options[0].label,'Search match');
+  assert.equal(result.selected[0].label,'Currently selected workflow');
+  assert.equal(result.selected[0].id,id);
+  assert.ok(calls.every(call=>call.name==='admin_resource_read' && call.args.resource==='prompt_chains'));
+});
+await check("owner choices support actual names and email search through admin-only user reads", async () => {
+  const client={rpc:async name=>{assert.equal(name,'admin_list_users');return {error:null,data:[
+    {id,first_name:'Campus',last_name:'Creator',email:'creator@example.edu'},
+    {id:'other',first_name:'Other',email:'other@example.edu'},
+  ]};}};
+  const result=await readReferenceOptions(client,'user_id','CREATOR@',1,[id]);
+  assert.equal(result.total,1);assert.equal(result.options[0].id,id);
+  assert.equal(result.selected[0].label,'Campus Creator (creator@example.edu)');
+});
+await check("initial choices deduplicate saved selections and only load actual reference fields", async () => {
+  const calls=[];
+  const client={rpc:async(name,args)=>{calls.push(args);return {error:null,data:{rows:[{id,name:'Google'}],total:1}};}};
+  const result=await loadReferenceChoices(client,[
+    {name:'id',primary:true},{name:'provider_id',primary:false},{name:'name',primary:false},
+  ],[{provider_id:id},{provider_id:id}]);
+  assert.deepEqual(Object.keys(result),['provider_id']);assert.equal(calls.length,1);
+  assert.equal(result.provider_id.selected[0].label,'Google');
+});
+await check("choice read failures surface a retryable error without fabricating records", async () => {
+  const result=await readReferenceOptions({rpc:async()=>({data:null,error:{message:'Private internal diagnostic'}})},'prompt_chain_id');
+  assert.equal(result.options.length,0);assert.match(result.error,/Retry/);assert.ok(!result.error.includes('Private'));
+});
+await check("chain list shows actual step counts, models and settings before opening details",()=>{
+  const chain={id,name:'Campus workflow',description:'Test configuration'};
+  const data={chains:[chain],steps:[{id:'step-b',prompt_chain_id:id,step_order:2,prompt:'Second instruction',llm_model_id:null},
+    {id:'step-a',prompt_chain_id:id,step_order:0,prompt:'First instruction',llm_model_id:null}],
+    mix:[{prompt_chain_id:id,enabled:false,weight:1}],models:[],providers:[],unavailable:false,defaultModel:'configured-model'};
+  const html=renderToStaticMarkup(React.createElement(ChainOverview,{chains:[chain],data}));
+  assert.ok(html.includes('Campus workflow'));assert.ok(html.includes('configured-model'));assert.ok(html.includes('Disabled'));
+  assert.ok(html.includes('Open workflow'));assert.ok(html.includes('chain='));
+  const before=JSON.stringify(data);
+  const detail=renderToStaticMarkup(React.createElement(ChainOverview,{chains:[chain],data,selected:chain}));
+  assert.ok(detail.indexOf('Step 1')<detail.indexOf('Step 2'));
+  assert.ok(detail.indexOf('First instruction')<detail.indexOf('Second instruction'));
+  assert.ok(detail.includes('multiple steps'));assert.ok(detail.includes('exactly one step'));
+  assert.equal(JSON.stringify(data),before);
+});
+await check("workspace section links keep the selected workflow and identify the active tab",()=>{
+  const html=renderToStaticMarkup(React.createElement(ChainTabs,{active:'test',chainId:id}));
+  assert.equal((html.match(/<a /g)??[]).length,4);assert.ok(html.includes('Test run'));
+  assert.equal((html.match(/chain=/g)??[]).length,4);assert.ok(html.includes('aria-current="page"'));
+});
+await check("recent runs use exact chain links and sort across all request pages", async () => {
+  const {loadChainDisplay}=load('lib/prompt-chain-display.ts');
+  const chain='70000000-0000-4000-8000-000000000004';
+  const requests=Array.from({length:26},(_,index)=>({id:`request-${index}`,prompt_chain_id:chain,user_id:'profile-one',request:{context:`Scene ${index}`},created_at:new Date(Date.UTC(2026,0,index+1)).toISOString(),status:'completed'}));
+  const calls=[];
+  const client={from:table=>{assert.equal(table,'profiles');return {select:()=>({in:async(field,ids)=>{assert.deepEqual(ids,['profile-one']);return {data:[{id:'profile-one',first_name:'Campus',last_name:'Creator'}]};}})};},rpc:async(name,args)=>{
+    assert.equal(name,'admin_resource_read');calls.push(args);
+    if(args.resource==='generation_requests')return {data:{rows:requests.slice((args.page_number-1)*25,args.page_number*25),total:26},error:null};
+    const rows=args.resource==='prompt_chains'?[{id:chain,name:'Inner monologue caption'}]:[];
+    return {data:{rows,total:rows.length},error:null};
+  }};
+  const data=await loadChainDisplay(client);
+  assert.equal(data.recentRuns[chain].length,5);
+  assert.equal(data.recentRuns[chain][0].id,'request-25');
+  assert.equal(data.recentRuns[chain][0].request.context,'Scene 25');
+  assert.equal(data.users['profile-one'].first_name,'Campus');
+  assert.ok(calls.some(call=>call.resource==='generation_requests'&&call.page_number===2&&call.search_text===chain));
+  const failed=await loadChainDisplay({rpc:async(name,args)=>args.resource==='generation_requests'?{error:{message:'unavailable'}}:client.rpc(name,args)});
+  assert.equal(failed.recentRuns[chain],undefined);
+});
+await check("resource details show readable content and named links without raw database fields",()=>{
+  const Details=load('components/ResourceDetails.tsx').default;
+  for(const [resource,row,expected] of [
+    ['terms',{id,term:'Butler',definition:'Campus library',storage_path:'internal/path'},'Campus library'],
+    ['generation-examples',{id,prompt:'Write a caption',response:'A witty caption'},'Expected response'],
+    ['llm-models',{id,name:'Gemini',provider_id:id},'Google'],
+    ['signup-domains',{id,domain:'example.edu'},'example.edu'],
+    ['whitelisted-emails',{id,email:'test@example.edu'},'test@example.edu'],
+    ['images',{id,alt_text:'Sleepy student',storage_path:'internal/path'},'Sleepy student'],
+  ]){
+    const html=renderToStaticMarkup(React.createElement(Details,{resource,row,choices:{provider_id:{options:[{id,label:'Google'}],selected:[],total:1,page:1}},relations:emptyRelations()}));
+    assert.ok(html.includes(expected));assert.ok(!html.includes('View details'));
+    assert.ok(!html.includes('<details'));assert.ok(!html.includes('Copy ID'));assert.ok(!html.includes(`>${id}<`));
+    assert.ok(!html.includes('storage_path'));assert.ok(!html.includes('internal/path'));assert.ok(!html.includes('<pre'));
+    assert.ok(!html.includes('provider_id'));assert.ok(!html.includes('?q='));
+  }
+});
+await check("models and providers render together with actual chain assignments and separate CRUD forms",async()=>{
+  const Page=load('components/ModelsProvidersPage.tsx').default;
+  const fixtures={llm_models:[{id:'model-one',name:'gemini-3.5-flash-lite',provider_id:'provider-one'}],llm_providers:[{id:'provider-one',name:'Google'}],prompt_chains:[{id:'chain-one',name:'Grounded campus caption'}],prompt_chain_steps:[{id:'step-one',prompt_chain_id:'chain-one',llm_model_id:null}],prompt_chain_mix:[{prompt_chain_id:'chain-one',enabled:true,weight:1}]};
+  const client={rpc:async(name,args)=>{assert.equal(name,'admin_resource_read');const rows=fixtures[args.resource];return {data:{rows,total:rows.length,columns:[{name:'id',primary:true,generated:false},{name:'name',primary:false,generated:false}]},error:null};}};
+  const html=renderToStaticMarkup(await Page({supabase:client,query:'',selected:''}));
+  assert.ok(html.indexOf('id="providers"')<html.indexOf('id="models"'));
+  assert.ok(html.includes('Grounded campus caption'));assert.ok(html.includes('Google'));
+  assert.equal((html.match(/data-resource="llm-providers"/g)??[]).length,1);
+  assert.equal((html.match(/data-resource="llm-models"/g)??[]).length,1);
+  assert.ok(!html.includes('role="tab"'));assert.ok(!html.includes('API base URL'));
+  assert.ok(html.includes('In use'));
+  fixtures.prompt_chain_mix[0].enabled=false;
+  const disabled=renderToStaticMarkup(await Page({supabase:client,query:'',selected:''}));assert.ok(!disabled.includes('In use'));
+  const filtered=renderToStaticMarkup(await Page({supabase:client,query:'no-match',selected:''}));
+  assert.ok(filtered.includes('No models match your search'));assert.ok(filtered.includes('Google'));
 });
 console.log(`\n${count} resource summary checks passed.`);

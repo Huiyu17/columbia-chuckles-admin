@@ -15,7 +15,7 @@ export async function saveResource(key: string, operation: string, id: unknown, 
     resource: resource.table, operation, row_id: id ?? null, payload,
   });
   if (error) return { error: `Could not ${operation} record: ${error.message}` };
-  revalidatePath(`/manage/${key}`);
+  revalidatePath(["prompt-chains", "prompt-chain-steps", "prompt-chain-mix"].includes(key) ? "/manage/prompt-chains" : ["llm-models", "llm-providers"].includes(key) ? "/manage/llm-models" : `/manage/${key}`);
   return { success: true };
 }
 

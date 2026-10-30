@@ -11,6 +11,9 @@ const links = [
   { href: "/media", label: "AI media", icon: "▣" },
   { href: "/votes", label: "Votes", icon: "±" },
 ];
+const resourceLinks = Object.entries(resources).filter(([key]) => !["prompt-chain-steps", "prompt-chain-mix", "llm-responses", "llm-providers"].includes(key));
+const requestPosition = resourceLinks.findIndex(([key]) => key === "generation-requests");
+resourceLinks.splice(requestPosition + 1, 0, ["llm-responses", resources["llm-responses"]]);
 
 export default function Sidebar({ email }: { email: string }) {
   const pathname = usePathname();
@@ -29,11 +32,11 @@ export default function Sidebar({ email }: { email: string }) {
           </Link>
         ))}
         <span className="sidebar-section">Generation & access</span>
-        {Object.entries(resources).map(([key, resource]) => (
+        {resourceLinks.map(([key, resource]) => (
           <Link key={key} href={`/manage/${key}`}
-            className={isActive(`/manage/${key}`) ? "side-link active" : "side-link"}
-            aria-current={isActive(`/manage/${key}`) ? "page" : undefined}>
-            {resource.title}
+            className={(key === "prompt-chains" ? pathname.startsWith("/manage/prompt-chain") : isActive(`/manage/${key}`)) ? "side-link active" : "side-link"}
+            aria-current={(key === "prompt-chains" ? pathname.startsWith("/manage/prompt-chain") : isActive(`/manage/${key}`)) ? "page" : undefined}>
+            {key === "prompt-chains" ? "Prompt chains" : key === "llm-models" ? "LLM models & providers" : "navLabel" in resource ? resource.navLabel : resource.title}
           </Link>
         ))}
       </nav>

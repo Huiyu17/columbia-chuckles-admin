@@ -1,5 +1,26 @@
 # Admin panel feedback log
 
+## Feedback 7: understandable workflows and name-based relationship selection
+
+The feedback group could not tell what prompt chains, steps and mix were for.
+Typing a related record's UUID also required finding it elsewhere before editing.
+
+- The three pages now use Caption workflows, Workflow instructions and Workflow
+  selection as their navigation/page names. Introductions retain the original
+  prompt-chain terminology and explain the purpose of each page. A linked,
+  three-part guide shows how workflows, instructions and selection fit together.
+- Selection settings explain enabled/disabled behavior, zero weights, relative
+  probability and why changing a lone workflow's positive weight has no effect.
+- Known relationship fields use searchable dropdowns with actual record names:
+  workflows, providers, models, images, owners, previews, requests and steps.
+  Existing forms no longer require typing these UUIDs. Values still submit full
+  IDs, preserve current selections during search/errors and support nullable choices.
+- Choices use the existing authorized read APIs, load additional pages on demand,
+  and show image previews / links to selected records. Normal-user access stays
+  blocked. No schema, RLS, stored data or mutation RPC changes are needed.
+- Regression tests cover selection by name, pagination, error/retry, required and
+  nullable selections, stale search replies, form reset and successful-save sync.
+
 ## Feedback 6: distinguish generation results from caption availability
 
 - Generation requests and LLM responses now label the generation result separately
@@ -120,3 +141,13 @@ everything.
   cannot restore them. The database enforces this.
 - `supabase/011_admin_soft_remove.sql` is tested by `scripts/removal-db-test.sql`
   (42 checks). The Trash (28) and admin (41) suites still pass with 011 applied.
+
+## Follow-up: one prompt-chain workspace and visible execution
+
+- One Prompt chains sidebar item replaces three separate workflow pages.
+- The overview table shows actual workflow names, models, step counts and selection state.
+- Opening a workflow shows ordered Step 1, Step 2 cards with full instructions and model names.
+- Overview, Steps, Selection settings and Test run tabs preserve the selected workflow.
+- Test run previews the production prompt or calls the configured Google model, displaying progress, response, latency and usage. It publishes nothing and saves no user history.
+- The current production engine supports one Google step. Multi-step configurations remain readable but are explicitly rejected for execution.
+- Named searchable relationship dropdowns submit complete IDs and preserve saved values when option loading fails.

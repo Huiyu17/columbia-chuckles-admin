@@ -1,7 +1,7 @@
 export const resources = {
-  "prompt-chains": { table: "prompt_chains", title: "Prompt chains", mode: "read" },
-  "prompt-chain-steps": { table: "prompt_chain_steps", title: "Prompt chain steps", mode: "read" },
-  "prompt-chain-mix": { table: "prompt_chain_mix", title: "Prompt chain mix", mode: "update" },
+  "prompt-chains": { table: "prompt_chains", title: "Prompt chains", navLabel: "Caption workflows", mode: "read" },
+  "prompt-chain-steps": { table: "prompt_chain_steps", title: "Prompt chain steps", navLabel: "Workflow instructions", mode: "read" },
+  "prompt-chain-mix": { table: "prompt_chain_mix", title: "Prompt chain mix", navLabel: "Workflow selection", mode: "update" },
   terms: { table: "terms", title: "Terms", mode: "crud" },
   "generation-requests": { table: "generation_requests", title: "Generation requests", mode: "read" },
   "generation-examples": { table: "ai_generation_examples", title: "AI generation examples", mode: "crud" },
@@ -23,10 +23,12 @@ export type RecordRow = Record<string, unknown>;
 export function relatedRecordHref(field: string, value: unknown): string | undefined {
   if (typeof value !== "string" || !value) return;
   if (field === "user_id") return `/users/${encodeURIComponent(value)}`;
+  if (field === "prompt_chain_id") return `/manage/prompt-chains?chain=${encodeURIComponent(value)}`;
+  if (field === "prompt_chain_step_id") return `/manage/prompt-chains?tab=steps&q=${encodeURIComponent(value)}`;
   const related: Record<string, ResourceKey> = {
     prompt_chain_id: "prompt-chains", llm_model_id: "llm-models",
     provider_id: "llm-providers", generation_request_id: "generation-requests", image_id: "images",
     prompt_chain_step_id: "prompt-chain-steps",
   };
-  return related[field] ? `/manage/${related[field]}?q=${encodeURIComponent(value)}` : undefined;
+  return related[field] ? `/manage/${related[field]}?record=${encodeURIComponent(value)}` : undefined;
 }
