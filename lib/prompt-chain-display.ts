@@ -22,7 +22,8 @@ export async function loadChainDisplay(supabase: Awaited<ReturnType<typeof creat
         const result = data as { rows: RecordRow[]; total: number };
         rows.push(...result.rows);
         if (rows.length >= result.total) {
-          recentRuns[id] = rows.filter(row => row.prompt_chain_id === id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, 5);
+          const ordered = rows.filter(row => row.prompt_chain_id === id).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+          recentRuns[id] = ordered.slice(0, 5);
           return;
         }
         if (!result.rows.length) return;

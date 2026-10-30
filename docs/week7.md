@@ -86,6 +86,11 @@ actual prompt-chain assignments, resolving null step models against the app defa
 Old provider links redirect while preserving selected records and searches.
 Each resource retains its CRUD permissions. Recent runs inside each prompt chain
 show actual request scenes and profile names with direct request links.
+Each chain shows an illustrative input/prompt/output flow with plain-language
+labels and a photo icon, without unresolved-variable syntax. Current prompt chain step configuration displays
+the actual configured model and instruction. Real user inputs and outputs are not
+used as template examples; recorded executions remain in Recent runs. Rendering
+the template makes no model calls or database changes.
 
 Generation requests now uses a paginated table with chain, model, style,
 generation-status and caption-status filters across the fully loaded history.

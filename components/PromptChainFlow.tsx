@@ -1,9 +1,10 @@
 import type { Column, RecordRow } from "@/lib/resources";
 import type { ReferenceChoices } from "@/lib/reference-fields";
-import { chainSteps, stepModelName, type ChainDisplayData } from "@/lib/prompt-chain-display";
+import { chainSteps, type ChainDisplayData } from "@/lib/prompt-chain-display";
 import PromptChainMix from "./PromptChainMix";
 import Link from "next/link";
 import { preview, resourceDate } from "@/lib/resource-summary";
+import PromptChainTemplate from "./PromptChainTemplate";
 
 export default function PromptChainFlow({ data, selectedId }: {
   data: ChainDisplayData; selectedId: string; columns: Column[]; choices: ReferenceChoices;
@@ -18,18 +19,10 @@ export default function PromptChainFlow({ data, selectedId }: {
         <summary><span>{String(chain.name ?? "Unnamed prompt chain")}</span>{" "}<span className="chain-kind-label">Prompt chain</span><span className="small muted"> · {steps ? `${steps.length} ${steps.length === 1 ? "step" : "steps"}` : "Steps unavailable"}</span></summary>
         <div className="chain-flow-layout">
           <section className="stack-md" aria-label="Caption generation flow">
-            <div className="flow-node"><span className="eyebrow">Input</span><h3>Photo + scene + humor style</h3></div>
-            <div className="flow-arrow" aria-hidden="true">↓</div>
-            {steps?.map((step, stepIndex) => <div key={String(step.id)} className="stack-md">
-              <div className="flow-node flow-model"><span className="eyebrow">{steps.length === 1 ? "Prompt chain step: Generate caption" : `Prompt chain step ${stepIndex + 1}`}</span>
-                <h3 className="chain-model-label">Model: {stepModelName(data, step)}</h3>
-                <blockquote className="test-instruction">{String(step.prompt ?? "No instruction configured.")}</blockquote>
-              </div><div className="flow-arrow" aria-hidden="true">↓</div>
-            </div>)}
+            <PromptChainTemplate steps={steps} data={data} />
             {!steps && <p role="status">Steps could not be loaded. Refresh to retry.</p>}
             {steps?.length === 0 && <p className="test-error">This prompt chain has no AI step and cannot generate a caption.</p>}
             {steps && steps.length > 1 && <p className="test-error">These are the configured steps in order. The current generation engine supports exactly one step, so this prompt chain cannot run yet.</p>}
-            <div className="flow-node"><span className="eyebrow">Output</span><h3>Caption draft</h3></div>
           </section>
           <section className="stack-md" aria-label="Recent runs">
             <h3>Recent runs</h3>

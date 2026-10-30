@@ -312,6 +312,7 @@ await check("recent runs use exact chain links and sort across all request pages
   const client={from:table=>{assert.equal(table,'profiles');return {select:()=>({in:async(field,ids)=>{assert.deepEqual(ids,['profile-one']);return {data:[{id:'profile-one',first_name:'Campus',last_name:'Creator'}]};}})};},rpc:async(name,args)=>{
     assert.equal(name,'admin_resource_read');calls.push(args);
     if(args.resource==='generation_requests')return {data:{rows:requests.slice((args.page_number-1)*25,args.page_number*25),total:26},error:null};
+    if(args.resource==='llm_responses')return {data:{rows:[{id:'output-one',generation_request_id:'request-25',response:'Actual recorded caption',error:null}],total:1},error:null};
     const rows=args.resource==='prompt_chains'?[{id:chain,name:'Inner monologue caption'}]:[];
     return {data:{rows,total:rows.length},error:null};
   }};
@@ -356,5 +357,15 @@ await check("models and providers render together with actual chain assignments 
   const disabled=renderToStaticMarkup(await Page({supabase:client,query:'',selected:''}));assert.ok(!disabled.includes('In use'));
   const filtered=renderToStaticMarkup(await Page({supabase:client,query:'no-match',selected:''}));
   assert.ok(filtered.includes('No models match your search'));assert.ok(filtered.includes('Google'));
+});
+await check("chain template uses placeholders and current instructions without real run data",()=>{
+  const Template=load('components/PromptChainTemplate.tsx').default;
+  const data={defaultModel:'Configured model',unavailable:false};
+  const html=renderToStaticMarkup(React.createElement(Template,{steps:[{id:'step-one',prompt:'Current step instruction',llm_model_id:null}],data}));
+  for(const value of ['How this prompt chain works','Illustrative flow','Photo selected','Situation entered by the user','Relatable / Deadpan / Absurd','Caption generated from these inputs','Current prompt chain step configuration','Current step instruction','Configured model'])assert.ok(html.includes(value),value);
+  assert.ok(!html.includes('Actual run'));assert.ok(!html.includes('<img'));assert.ok(!html.includes('app default'));
+  for(const label of ['Caption writing rules','Humor style','Photo &amp; scene'])assert.ok(html.includes(label));
+  assert.ok(!html.includes('{{'));
+  assert.ok(!html.includes('{{shared_caption_rules}}'));assert.ok(!html.includes('{{style_instructions}}'));assert.ok(!html.includes('{{photo_context_and_scene}}'));
 });
 console.log(`\n${count} resource summary checks passed.`);
