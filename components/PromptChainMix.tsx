@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { saveResource } from "@/app/actions/resources";
+import { savePromptChainMix } from "@/app/actions/resources";
 import type { RecordRow } from "@/lib/resources";
 
 export default function PromptChainMix({ chains, rows }: { chains: RecordRow[]; rows: RecordRow[] }) {
@@ -15,7 +15,10 @@ export default function PromptChainMix({ chains, rows }: { chains: RecordRow[]; 
 function MixForm({ chains, rows, setMessage }: { chains: RecordRow[]; rows: RecordRow[]; setMessage: (value: string) => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [drafts, setDrafts] = useState(() => rows.map(row => ({ id: row.id, chain: row.prompt_chain_id, enabled: row.enabled === true, weight: String(row.weight ?? 0) })));
+  const [drafts, setDrafts] = useState(() => chains.map(chain => {
+    const row = rows.find(row => row.prompt_chain_id === chain.id);
+    return { chain: String(chain.id), enabled: row?.enabled === true, weight: String(row?.weight ?? 1) };
+  }));
   const [saved, setSaved] = useState(drafts);
   const [uncertain, setUncertain] = useState(false);
   const dirty = drafts.some((row,index)=>row.enabled!==saved[index].enabled || Number(row.weight)!==Number(saved[index].weight) || !row.weight.trim());
@@ -29,11 +32,11 @@ function MixForm({ chains, rows, setMessage }: { chains: RecordRow[]; rows: Reco
     event.preventDefault(); setMessage("");
     if (drafts.some(row => !row.weight.trim() || !Number.isFinite(Number(row.weight)) || Number(row.weight) < 0)) { setMessage("Enter a weight of 0 or greater for each chain."); return; }
     startTransition(async () => {
-      const outcomes = await Promise.allSettled(drafts.map(row => saveResource("prompt-chain-mix", "update", row.id, { enabled: row.enabled, weight: Number(row.weight) })));
-      const failures = outcomes.filter(result => result.status === "rejected" || result.value.error);
-      setUncertain(failures.length>0);
-      setMessage(failures.length ? `${outcomes.length - failures.length} of ${outcomes.length} settings saved. Refresh to confirm the live mix before making further changes.` : "Saved successfully. The updated mix is now live.");
-      if (!failures.length) { setSaved(drafts.map(row=>({...row}))); router.refresh(); }
+      try {
+        const result = await savePromptChainMix(drafts.map(row => ({ chain: row.chain, enabled: row.enabled, weight: Number(row.weight) })));
+        if (result.error) { setMessage(result.error); return; }
+        setSaved(drafts.map(row=>({...row}))); setMessage("Saved successfully. The updated mix is now live."); router.refresh();
+      } catch { setUncertain(true); setMessage("The save could not be confirmed. Refresh saved settings before making further changes."); }
     });
   }}>
     <p role="status" className="small muted"><strong>{uncertain ? "Live settings need confirmation" : liveTotal>0 ? "Live mix enabled" : "Live mix disabled"}</strong>{!uncertain && <> · {liveWeights.filter(weight=>weight>0).length} active {liveWeights.filter(weight=>weight>0).length===1?"chain":"chains"}</>}</p>

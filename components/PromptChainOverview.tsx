@@ -10,10 +10,10 @@ export default function PromptChainOverview({ chains, data, selected }: { chains
     const id = String(selected.id);
     return <div className="stack-lg">
       <section className="card stack-md"><div className="row resource-results-head"><h2>Steps in this workflow</h2><span className="resource-status">{chainAvailability(data, selected.id)}</span></div>
-        <p className="muted">Read from top to bottom. Each numbered card is one configured model step. The caption app currently runs a single step per generation.</p>
+        <p className="muted">Read from top to bottom. The caption app runs each configured step in order and saves the last output as the preview.</p>
         {!steps && <p role="status">The steps could not be loaded. Please refresh.</p>}
         {steps?.length === 0 && <p>No steps are configured for this workflow.</p>}
-        {steps && steps.length > 1 && <p className="test-error">This workflow has multiple steps. They are shown in order below, but the current caption app and Test run require exactly one step.</p>}
+        {steps && steps.length > 1 && <p className="small muted">Use the Prompt Chain Tool to test this multi-step workflow. The older Admin Test run supports single-step diagnostics only.</p>}
         <ol className="test-trace">{steps?.map((step, index) => <li className="test-stage" key={String(step.id)}>
           <h3>Step {index + 1}</h3><p className="small muted">Model: {stepModelName(data, step)}</p>
           <details open={steps.length === 1}><summary>AI instructions</summary><pre className="prompt">{String(step.prompt ?? "No instruction text")}</pre></details>

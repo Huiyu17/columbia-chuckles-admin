@@ -1,4 +1,41 @@
 /* Backstage — Columbia Chuckles admin. Shares the main app's paper/ink/orange brand. */
+.response-run-list { display:grid; gap:20px; }
+.response-run { padding:24px; display:flex; flex-direction:column; gap:18px; min-width:0; }
+.response-run-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+.response-run-identity { display:flex; align-items:center; gap:14px; min-width:0; }
+.response-run-head h2 { font-size:18px; letter-spacing:-.3px; }
+.response-run-photo { width:68px; height:68px; object-fit:contain; background:var(--paper); border:1px solid var(--line); border-radius:10px; flex-shrink:0; }
+.response-source,.response-final-tag { display:inline-flex; padding:3px 8px; border-radius:6px; background:#f2f0e9; color:var(--muted); font-size:11px; font-weight:600; }
+.recent-run-source { margin:6px 0 0; }
+.resource-status.generation-status-completed { background:#e5efe6; color:#23623b; }
+.resource-status.generation-status-failed { background:#fbe8e6; color:#a42622; }
+.resource-status.generation-status-running,.resource-status.generation-status-pending { background:#fff1d6; color:#80530d; }
+.recent-run-source .response-source { border-radius:999px; padding:3px 9px; line-height:1.5; }
+.response-final-tag { background:#e5efe6; color:#2a653a; }
+.response-run-scene { margin:0; font-size:14px; color:var(--muted); overflow-wrap:anywhere; }
+.response-run-metrics { margin:0; padding:14px 18px; background:var(--paper); border:1px solid var(--line); border-radius:10px; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:16px; }
+.response-run-metrics dt { color:var(--muted); font-size:11px; }
+.response-run-metrics dd { margin:4px 0 0; font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
+.response-run-output { padding:16px 18px; border-left:3px solid var(--orange); background:var(--paper); border-radius:0 8px 8px 0; }
+.response-run-output p { margin:8px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; }
+.response-run-execution { border-top:1px solid var(--line); padding-top:14px; }
+.response-run-execution>summary { cursor:pointer; display:flex; align-items:center; gap:10px; font-weight:600; color:var(--ink); list-style:none; }
+.response-run-execution>summary::before { content:'›'; font-size:22px; color:var(--orange); transform:rotate(0deg); }
+.response-run-execution[open]>summary::before { transform:rotate(90deg); }
+.response-run-execution>summary::-webkit-details-marker { display:none; }
+.response-run-execution>summary>.small { margin-left:auto; font-weight:400; }
+.response-timeline { margin:22px 0 0; padding:0; list-style:none; }
+.response-timeline-step { position:relative; display:grid; grid-template-columns:30px minmax(0,1fr); gap:14px; padding:0 0 24px; }
+.response-timeline-step:not(:last-child)::before { content:''; position:absolute; left:14px; top:30px; bottom:0; width:1px; background:var(--line); }
+.response-timeline-step:last-child { padding-bottom:0; }
+.response-step-marker { display:grid; place-items:center; width:30px; height:30px; border-radius:50%; background:var(--ink); color:var(--card); font-weight:600; font-size:12px; }
+.response-step-content { min-width:0; padding:16px; border:1px solid var(--line); border-radius:10px; display:grid; gap:12px; }
+.response-step-content>.row { align-items:center; }
+.response-step-output { margin:0; padding:14px; background:var(--paper); border-radius:8px; white-space:pre-wrap; overflow-wrap:anywhere; line-height:1.7; max-height:360px; overflow:auto; }
+.response-step-prompt summary { color:var(--muted); cursor:pointer; font-size:12px; }
+.response-step-prompt pre { margin:12px 0 0; padding:14px; border:1px solid var(--line); border-radius:8px; white-space:pre-wrap; overflow-wrap:anywhere; font:12px/1.7 Arial,Helvetica,sans-serif; max-height:320px; overflow:auto; background:var(--paper); }
+.response-run-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; border-top:1px solid var(--line); padding-top:14px; }
+@media(max-width:700px) { .response-run { padding:16px; gap:14px; } .response-run-head { flex-wrap:wrap; } .response-run-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; } .response-run-photo { width:52px; height:52px; } .response-timeline-step { grid-template-columns:26px minmax(0,1fr); gap:8px; } .response-step-marker { width:26px; height:26px; } .response-timeline-step:not(:last-child)::before { left:12px; } .response-step-content { padding:12px; } }
 :root {
   --paper: #faf9f6;
   --card: #ffffff;

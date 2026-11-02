@@ -19,6 +19,18 @@ export async function saveResource(key: string, operation: string, id: unknown, 
   return { success: true };
 }
 
+export async function savePromptChainMix(settings: { chain: string; enabled: boolean; weight: number }[]) {
+  const auth = await adminForAction();
+  if (auth.error !== undefined) return { error: auth.error };
+  if (!Array.isArray(settings) || settings.length > 1000 || settings.some(setting =>
+    !setting || typeof setting.chain !== "string" || typeof setting.enabled !== "boolean"
+    || !Number.isFinite(setting.weight) || setting.weight < 0)) return { error: "Invalid mix settings." };
+  const { error } = await auth.supabase.rpc("admin_save_chain_mix", { p_settings: settings });
+  if (error) return { error: error.code === "PGRST202" ? "Apply 017_public_multistep_chains.sql before saving the mix." : `Could not save the mix: ${error.message}` };
+  revalidatePath("/manage/prompt-chains");
+  return { success: true };
+}
+
 export async function uploadAdminImage(form: FormData): Promise<{ error?: string; success?: boolean }> {
   const auth = await adminForAction();
   if (auth.error !== undefined) return { error: auth.error };
